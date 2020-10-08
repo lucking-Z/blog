@@ -4,7 +4,6 @@
  Source Server         : Mysql
  Source Server Type    : MySQL
  Source Server Version : 50731
- Source Host           : 39.105.216.247:13306
  Source Schema         : blog
 
  Target Server Type    : MySQL
