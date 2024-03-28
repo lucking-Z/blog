@@ -1,13 +1,13 @@
 package main
 
 import (
-	"blogs/controller/article"
-	"blogs/controller/user"
-	"blogs/model/muser"
-	"blogs/utils/db"
-	"blogs/utils/log"
-	"blogs/utils/resp"
-	"blogs/utils/uuid"
+	"blogs/pkg/db"
+	"blogs/pkg/log"
+	"blogs/pkg/resp"
+	"blogs/pkg/uuid"
+	"blogs/src/controller/article"
+	"blogs/src/controller/user"
+	"blogs/src/model/muser"
 	"encoding/gob"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -57,8 +57,6 @@ func AuthMiddleware() gin.HandlerFunc {
 		ctx.Next()
 	}
 }
-
-
 
 func main() {
 	log.Init("./log/")
