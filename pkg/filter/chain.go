@@ -62,9 +62,12 @@ func appendLastNode(ex Expression, mark *Expression) {
 	}
 }
 
-func appendNode(ex Expression, mark *Expression) {
-
-	appendNode(ex, &mark.Nodes[len(mark.Nodes)-1])
+func appendNode(ex Expression, mark *Expression, prev *Expression) {
+	if len(mark.Nodes) > 0 {
+		appendNode(ex, &mark.Nodes[len(mark.Nodes)-1], mark)
+	} else {
+		prev.Nodes = append(prev.Nodes, ex)
+	}
 }
 
 func (f *Chain) Append(attrName string, relationalOp RelationalOperator, val any) *Chain {
