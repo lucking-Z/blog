@@ -27,54 +27,54 @@ func GetInstance() *gorm.DB {
 	return instance
 }
 
-func transformClause(ex *filter.Expression) (clause.Clause, error) {
-	switch ex.Relational {
-	case filter.RelationalEq:
-		return clause.Eq{Column: ex.AttrName, } fmt.Sprintf("%s = ?", ex.AttrName), nil
-	case filter.RelationalNotEq:
-		return fmt.Sprintf("%s != ?", ex.AttrName), nil
-	case filter.RelationalGt:
-		return fmt.Sprintf("%s > ?", ex.AttrName), nil
-	case filter.RelationalGte:
-		return fmt.Sprintf("%s >= ?", ex.AttrName), nil
-	case filter.RelationalLt:
-		return fmt.Sprintf("%s < ?", ex.AttrName), nil
-	case filter.RelationalLte:
-		return fmt.Sprintf("%s <= ?", ex.AttrName), nil
-	case filter.RelationalIn:
-		return fmt.Sprintf("%s in ?", ex.AttrName), nil
+func transformQuery(ex *filter.Expression) (clause.Expression, error) {
+	switch ex.Op {
+	case filter.OpEq:
+		return clause.Eq{Column: ex.AttrName, Value: ex.Value}, nil
+	case filter.OpNotEq:
+		return clause.Neq{Column: ex.AttrName, Value: ex.Value}, nil
+	case filter.OpGt:
+		return clause.Gt{Column: ex.AttrName, Value: ex.Value}, nil
+	case filter.OpGte:
+		return clause.Gte{Column: ex.AttrName, Value: ex.Value}, nil
+	case filter.OpLt:
+		return clause.Lt{Column: ex.AttrName, Value: ex.Value}, nil
+	case filter.OpLte:
+		return clause.Lte{Column: ex.AttrName, Value: ex.Value}, nil
+	case filter.OpIn:
+		return clause.IN{Column: ex.AttrName, Values: ex.Values}, nil
 	default:
-		return "", fmt.Errorf("expression relational operator is unknown:%d", ex.Relational)
+		return nil, fmt.Errorf("expression relational operator is unknown:%d", ex.Op)
 	}
 }
 
-func Build(db *gorm.DB, ex *filter.Expression) error {
-	query, err := transformQuery(ex)
-	if err != nil {
-		return err
-	}
-	db.Clauses(clause.Clause{Expression: clause.Eq{Column: true}})
-	db.Where(query, ex.Val)
-	sub := ex.GetSubExpression()
-	for k, v := range sub {
-		query, err := transformQuery(&sub[k])
-		if err != nil {
-			return err
-		}
-		if v.Logical == filter.LogicalOr {
-			db.Or(query, v.AttrName)
-		} else {
-			db.Where(query, v.AttrName)
-		}
-		vSub := v.GetSubExpression()
-		for k := range vSub {
-			err = Build(db, &vSub[k])
+func Build(ex []filter.Expression, wrapInParentheses bool) ([]clause.Expression, error) {
+	tmp := make([]clause.Expression, 0)
+	for k, v := range ex {
+		if v.Op == filter.OpAnd || v.Op == filter.OpOr {
+			exps := ex[k].GetExps()
+			res, err := Build(exps, true)
 			if err != nil {
-				return err
+				return nil, err
 			}
+			if !wrapInParentheses {
+				tmp = append(tmp, res...)
+			} else {
+				if v.Op == filter.OpAnd {
+					tmp = append(tmp, clause.And(res...))
+				} else if v.Op == filter.OpOr {
+					tmp = append(tmp, clause.Or(res...))
+				}
+			}
+		} else {
+			res, err := transformQuery(&ex[k])
+			if err != nil {
+				return nil, err
+			}
+			tmp = append(tmp, res)
 		}
 	}
-	return nil
+	return tmp, nil
 }
 
 func InitDB(confObj ConfigDB) {
