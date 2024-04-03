@@ -20,6 +20,11 @@ type Chain struct {
 	root []Expression
 }
 
+func (c *Chain) Append(ex ...Expression) *Chain {
+	c.root = append(c.root, ex...)
+	return c
+}
+
 func (c *Chain) And(ex ...Expression) *Chain {
 	c.root = append(c.root, And(ex...))
 	return c

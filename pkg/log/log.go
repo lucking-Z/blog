@@ -2,145 +2,62 @@ package log
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"github.com/sirupsen/logrus"
-	"os"
-	"runtime"
-	"strconv"
+	"io"
 )
 
-type Fields logrus.Fields
-
-type LogInfo struct {
-	isMultiFile bool
-	logHandler  map[string]*logrus.Logger
-	logLevel    logrus.Level
-	logPath     string
+type Fields struct {
+	FieldName string
+	Val       string
 }
 
-var (
-	logInfo  LogInfo
-	logLevel []string
-)
-
-func Init(logPath string) {
-	logInfo = LogInfo{
-		isMultiFile: true,
-		logHandler:  make(map[string]*logrus.Logger),
-		logLevel:    logrus.DebugLevel,
-		logPath:     logPath,
-	}
-	loglevel := []string{"debug", "info", "warn", "error", "fatal", "access"}
-
-	for _, level := range loglevel {
-		logInfo.logHandler[level] = initHandler(level, logPath)
-	}
+type ILog interface {
+	Info(ctx context.Context, message string, data ...Fields)
+	Error(ctx context.Context, message string, data ...Fields)
+	Warn(ctx context.Context, message string, data ...Fields)
+	Debug(ctx context.Context, message string, data ...Fields)
+	Fatal(ctx context.Context, message string, data ...Fields)
 }
 
-func initHandler(level string, logPath string) *logrus.Logger {
-	_, err := os.Stat(logPath)
+type Logger struct {
+	logHandler *logrus.Logger
+}
 
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(logPath, os.ModePerm)
-		if err != nil {
-			panic(fmt.Sprintf("create log path failed:%s", err.Error()))
-		}
-	}
+var _ ILog = (*Logger)(nil)
 
-	file, err := os.OpenFile(logPath+level+".log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-
-	if err != nil {
-		panic(fmt.Sprintf("open log path failed:%s", err.Error()))
-	}
-
+func New(output io.Writer) *Logger {
 	logHandler := logrus.New()
-	logHandler.SetLevel(logInfo.logLevel)
-	logHandler.SetOutput(file)
-	logHandler.SetFormatter(&Formatter{})
-
-	return logHandler
-}
-
-type Formatter struct {
-}
-
-func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
-	time := entry.Time.Format("2006-01-02 15:04:05")
-
-	ip := ""
-
-	if entry.Data["ip"] != nil {
-		ip = entry.Data["ip"].(string)
-		delete(entry.Data, "ip")
+	logHandler.SetOutput(output)
+	logHandler.SetFormatter(&logrus.JSONFormatter{})
+	return &Logger{
+		logHandler: logHandler,
 	}
+}
 
-	uniqId := ""
-
-	if entry.Data["uniqId"] != nil {
-		uniqId = entry.Data["uniqId"].(string)
-		delete(entry.Data, "uniqId")
+func (l *Logger) getLogIns(fields []Fields) *logrus.Entry {
+	f := make(logrus.Fields, 0)
+	for k := range fields {
+		f[fields[k].FieldName] = fields[k].Val
 	}
-
-	file := getCaller()
-
-	msg := entry.Message
-
-	dataByte, _ := json.Marshal(entry.Data)
-
-	logMsg := fmt.Sprintf("[%s] [%s] [%s] [%s] [%s] [%s]\n", time, ip, uniqId, file, msg, string(dataByte))
-
-	return []byte(logMsg), nil
+	return l.logHandler.WithFields(f)
 }
 
-func getCaller() string {
-	_, file, line, _ := runtime.Caller(7)
-	return file + ":" + strconv.Itoa(line)
+func (l *Logger) Debug(ctx context.Context, message string, fields ...Fields) {
+	l.getLogIns(fields).Log(logrus.DebugLevel, message)
 }
 
-func getHandler(level string) *logrus.Logger {
-	var logHandler *logrus.Logger
-
-	if logInfo.isMultiFile {
-		logHandler, _ = logInfo.logHandler[level]
-	} else {
-		logHandler, _ = logInfo.logHandler["info"]
-	}
-
-	return logHandler
+func (l *Logger) Info(ctx context.Context, message string, fields ...Fields) {
+	l.getLogIns(fields).Log(logrus.InfoLevel, message)
 }
 
-//调试
-func Debug(ctx context.Context, msg string, data Fields) {
-	data["uniqId"] = ctx.Value("uuid")
-	data["ip"] = ctx.Value("ip")
-	getHandler("debug").WithFields(logrus.Fields(data)).Debug(msg)
+func (l *Logger) Warn(ctx context.Context, message string, fields ...Fields) {
+	l.getLogIns(fields).Log(logrus.WarnLevel, message)
 }
 
-//正常
-func Info(ctx context.Context, msg string, data Fields) {
-	data["uniqId"] = ctx.Value("uuid")
-	data["ip"] = ctx.Value("ip")
-	getHandler("info").WithFields(logrus.Fields(data)).Info(msg)
+func (l *Logger) Error(ctx context.Context, message string, fields ...Fields) {
+	l.getLogIns(fields).Log(logrus.ErrorLevel, message)
 }
 
-//警告
-func Warn(ctx context.Context, msg string, data Fields) {
-	data["uniqId"] = ctx.Value("uuid")
-	data["ip"] = ctx.Value("ip")
-	getHandler("warn").WithFields(logrus.Fields(data)).Warn(msg)
-}
-
-//错误
-func Error(ctx context.Context, msg string, data Fields) {
-	data["uniqId"] = ctx.Value("uuid")
-	data["ip"] = ctx.Value("ip")
-	getHandler("error").WithFields(logrus.Fields(data)).Error(msg)
-}
-
-//严重
-func Fatal(ctx context.Context, msg string, data Fields) {
-	data["uniqId"] = ctx.Value("uuid")
-	data["ip"] = ctx.Value("ip")
-	getHandler("fatal").WithFields(logrus.Fields(data)).Fatal(msg)
+func (l *Logger) Fatal(ctx context.Context, message string, fields ...Fields) {
+	l.getLogIns(fields).Log(logrus.FatalLevel, message)
 }
