@@ -1,105 +1,105 @@
 package aes
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"fmt"
+	"errors"
 )
 
-const (
-	Zero  string = "Zero"
-	PKCS5 string = "PKCS5"
-	PKCS7 string = "PKCS7"
-)
+type Aes struct {
+	p     IPadding
+	c     IEncipher
+	enc   IEncoder
+	block cipher.Block
+	iv    []byte
+}
 
-/*
- *plantText: plant text
-  *key: size 16,24, 32 match AES-128, AES-192, AES-256
-   *padding: one of Zero,PKCS5,PKCS7,default PKCS5
-*/
-func CBCEncrypt(plantText, key []byte, padding string) ([]byte, error) {
+type Options func(a *Aes)
+
+func ZeroPaddingOp() Options {
+	return func(a *Aes) {
+		a.p = ZeroPadding{}
+	}
+}
+
+func Pkcs7PaddingOp() Options {
+	return func(a *Aes) {
+		a.p = Pkcs7Padding{}
+	}
+}
+
+func IvOp(iv []byte) Options {
+	return func(a *Aes) {
+		a.iv = iv
+	}
+}
+
+func Base64Op() Options {
+	return func(a *Aes) {
+		a.enc = Base64{}
+	}
+}
+
+func HexOp() Options {
+	return func(a *Aes) {
+		a.enc = Hex{}
+	}
+}
+
+func NewAes(key []byte, c IEncipher, op ...Options) (*Aes, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-
-	switch padding {
-	case Zero:
-		plantText = ZeroPadding(plantText, block.BlockSize())
-	case PKCS7:
-		plantText = PKCS7Padding(plantText, block.BlockSize())
-	default:
-		plantText = PKCS5Padding(plantText, block.BlockSize())
+	a := &Aes{
+		block: block,
+		c:     c,
 	}
-
-	blockModel := cipher.NewCBCEncrypter(block, key)
-
-	ciphertext := make([]byte, len(plantText))
-
-	blockModel.CryptBlocks(ciphertext, plantText)
-	return ciphertext, nil
+	for _, v := range op {
+		v(a)
+	}
+	return a, nil
 }
 
-/*
- *cipherText: cipher text
-  *key: size 16,24, 32 match AES-128, AES-192, AES-256
-   *unpadding: one of Zero,PKCS5,PKCS7,default PKCS5
-*/
-func CBCDecrypt(ciphertext, key []byte, unpadding string) ([]byte, error) {
-	keyBytes := []byte(key)
-	block, err := aes.NewCipher(keyBytes)
+func (a *Aes) Decrypt(src []byte) (dst []byte, err error) {
+	if a.enc != nil {
+		src, err = a.enc.Decode(src)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if a.c == nil {
+		return nil, errors.New("encrypt mode is nil")
+	}
+	dst = make([]byte, len(src))
+	err = a.c.Decrypt(a, dst, src)
 	if err != nil {
 		return nil, err
 	}
-	blockModel := cipher.NewCBCDecrypter(block, keyBytes)
-	plantText := make([]byte, len(ciphertext))
-	blockModel.CryptBlocks(plantText, ciphertext)
-
-	fmt.Println(plantText)
-	switch unpadding {
-	case Zero:
-		plantText = ZeroUnPadding(plantText)
-	case PKCS7:
-		plantText = PKCS7UnPadding(plantText)
-	default:
-		plantText = PKCS5UnPadding(plantText)
+	if a.p != nil {
+		return a.p.UnPadding(dst, a.block.BlockSize())
 	}
-	return plantText, nil
+	return dst, nil
 }
 
-func PKCS7Padding(ciphertext []byte, blockSize int) []byte {
-	padding := blockSize - len(ciphertext)%blockSize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(ciphertext, padtext...)
-}
+func (a *Aes) Encrypt(src []byte) (dst []byte, err error) {
+	if a.p != nil {
+		src, err = a.p.Padding(src, a.block.BlockSize())
+		if err != nil {
+			return nil, err
+		}
+	}
+	if a.c == nil {
+		return nil, errors.New("encrypt mode is nil")
+	}
+	dst = make([]byte, len(src))
+	err = a.c.Encrypt(a, dst, src)
+	if err != nil {
+		return nil, err
+	}
 
-func PKCS7UnPadding(plantText []byte) []byte {
-	length := len(plantText)
-	unpadding := int(plantText[length-1])
-	return plantText[:(length - unpadding)]
-}
-
-func ZeroPadding(ciphertext []byte, blockSize int) []byte {
-	padding := blockSize - len(ciphertext)%blockSize
-	padtext := bytes.Repeat([]byte{0}, padding)
-	return append(ciphertext, padtext...)
-}
-
-func ZeroUnPadding(origData []byte) []byte {
-	length := len(origData)
-	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
-}
-
-func PKCS5Padding(ciphertext []byte, blockSize int) []byte {
-	padding := blockSize - len(ciphertext)%blockSize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(ciphertext, padtext...)
-}
-
-func PKCS5UnPadding(origData []byte) []byte {
-	length := len(origData)
-	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
+	if a.enc != nil {
+		return a.enc.Encode(dst)
+	}
+	return dst, nil
 }
