@@ -1,7 +1,7 @@
 package user
 
 import (
-	"blogs/pkg/crypto/md5"
+	"blogs/pkg/crypto/hash"
 	"blogs/pkg/log"
 	"blogs/pkg/resp"
 	"blogs/src/model/muser"
@@ -33,7 +33,7 @@ func (Cuser) Login(ctx *gin.Context) {
 		return
 	}
 
-	if user == nil || user.PassWord != md5.Md5Str(loginForm.Password) {
+	if user == nil || user.PassWord != hash.Md5Str(loginForm.Password) {
 		log.Info(ctx, "login password error", log.Fields{"params": loginForm, "user": user})
 		resp.ResultRender(ctx, resp.ErrPassword, nil)
 		return
@@ -84,7 +84,7 @@ func (Cuser) Create(ctx *gin.Context) {
 	}
 
 	userInfo := &muser.User{}
-	userInfo.PassWord = md5.Md5Str(createUserForm.Password)
+	userInfo.PassWord = hash.Md5Str(createUserForm.Password)
 	userInfo.Account = createUserForm.Account
 	userInfo.Name = createUserForm.Name
 

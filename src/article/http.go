@@ -7,21 +7,17 @@ import (
 	"strconv"
 )
 
-type CArticle struct {
-}
-
 type addArticleForm struct {
 	Title   string `form:"title" binding:"required"`
 	Content string `form:"content" binding:"required"`
 }
 
-func (CArticle) Add(ctx *gin.Context) {
+func Add(ctx *gin.Context) {
 	var articleForm addArticleForm
 	if err := ctx.ShouldBind(&articleForm); err != nil {
 		resp.ResultRender(ctx, resp.ErrParams, nil)
 		return
 	}
-
 	article := &marticle.Article{}
 	article.Content = articleForm.Content
 	article.Title = articleForm.Title
@@ -43,7 +39,7 @@ type updateArticleForm struct {
 	Content string `form:"content" binding:"required"`
 }
 
-func (CArticle) Update(ctx *gin.Context) {
+func Update(ctx *gin.Context) {
 	var articleForm updateArticleForm
 	if err := ctx.ShouldBind(&articleForm); err != nil {
 		resp.ResultRender(ctx, resp.ErrParams, nil)
@@ -58,7 +54,7 @@ func (CArticle) Update(ctx *gin.Context) {
 	resp.ResultRender(ctx, nil, nil)
 }
 
-func (CArticle) Delete(ctx *gin.Context) {
+func Delete(ctx *gin.Context) {
 	id, _ := strconv.Atoi(ctx.PostForm("id"))
 	if id <= 0 {
 		resp.ResultRender(ctx, resp.ErrParams, nil)
@@ -73,7 +69,7 @@ func (CArticle) Delete(ctx *gin.Context) {
 	resp.ResultRender(ctx, nil, nil)
 }
 
-func (CArticle) Get(ctx *gin.Context) {
+func Get(ctx *gin.Context) {
 	id, _ := strconv.Atoi(ctx.DefaultQuery("id", ""))
 	if id <= 0 {
 		resp.ResultRender(ctx, resp.ErrParams, nil)

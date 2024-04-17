@@ -35,8 +35,8 @@ type Result struct {
 //	c.AbortWithStatusJSON(httpCode, result)
 //}
 
-// ResultRender 返回结果
-func ResultRender(c *gin.Context, err *Error, obj interface{}) {
+// Render 返回结果
+func Render(c *gin.Context, err *Error, obj interface{}) {
 	if err == nil {
 		err = ErrSuccess
 	}
@@ -46,6 +46,7 @@ func ResultRender(c *gin.Context, err *Error, obj interface{}) {
 		Message: err.ErrMsg,
 		Data:    obj,
 	}
+	c.Header("RequestID")
 	c.Set("response", result)
 	c.JSON(200, result)
 }
